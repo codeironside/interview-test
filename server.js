@@ -10,7 +10,6 @@ const credentials = require("./middleware/credentials");
 const { errorHandler } = require("./middleware/errormiddleware");
 const { Server } = require('socket.io');
 const connectDB = require("./config/db");
-const logger = require("./utils/logger");
 
 const app = express();
 
@@ -43,17 +42,17 @@ app.get('/', (req, res) => {
     res.send('finished the end point');
 });
 // Routes
-app.use("/api/v1/users/auth", require("./routes/users"));
-app.use("/api/v1/shops", require("./routes/shops.route"));
-app.use("/api/v1/threads", require("./routes/threads"));
-app.use("/api/v1/blogs", require("./routes/blog"));
-app.use("/api/v1/subscription", require("./routes/subscription"));
-app.use("/api/v1/booking", require("./routes/booking"));
-app.use("/api/v1/cart", require("./routes/cart"));
-app.use("/api/v1/payment", require("./routes/payment"));
-app.use("/api/v1/campaign", require("./routes/campaign"));
-app.use("/api/v1/stripe", require("./routes/stripe.route"));
-app.use("/api/v1/customerservice", require("./routes/customerservice.route"));
+app.use("/api/v1/users/auth", require("./routes/user"));
+app.use("/api/v1/coffee", require("./routes/coffee"));
+// app.use("/api/v1/threads", require("./routes/threads"));
+// app.use("/api/v1/blogs", require("./routes/blog"));
+// app.use("/api/v1/subscription", require("./routes/subscription"));
+// app.use("/api/v1/booking", require("./routes/booking"));
+// app.use("/api/v1/cart", require("./routes/cart"));
+// app.use("/api/v1/payment", require("./routes/payment"));
+// app.use("/api/v1/campaign", require("./routes/campaign"));
+// app.use("/api/v1/stripe", require("./routes/stripe.route"));
+// app.use("/api/v1/customerservice", require("./routes/customerservice.route"));
 
 // Error handling middleware
 app.use(errorHandler);
@@ -61,5 +60,4 @@ app.use(errorHandler);
 
 app.listen(port, () => {
     console.log(`Server running on port ${port}`);
-    logger.info('Server running on port ${port}');
 });

@@ -92,10 +92,9 @@ const getallcoffee = asynchandler(async (req, res) => {
 
 
 const updatecoffee = asynchandler(async (req, res) => {
-  const { coffeeId } = req.params; // Get the shop ID from the route parameters
-  const clientIp = req.ip;
+  const { coffeeId } = req.params; 
 
-  const updateData = req.body; // Get the updated data from the request body
+  const updateData = req.body; 
   const { id } = req.auth;
   try {
     if (!coffeeId) {
@@ -128,7 +127,7 @@ const user = await users.findById(id)
       });
     }
     const updatedcoffee = await COFFEE.findByIdAndUpdate(shopId, updateData, {
-      new: true, // Return the updated shop document
+      new: true, 
     });
 
     if (!updatedcoffee) {
@@ -176,7 +175,7 @@ const deletecoffee = asynchandler(async (req, res) => {
       ) {
           throw Object.assign(new Error("not authorized"), {
               statusCode: 403,
-          }
+          })
         }
     const deletedShop = await COFFEE.findByIdAndDelete(shopId);
 
@@ -208,5 +207,9 @@ const generateToken = (id) => {
   );
 };
 module.exports = {
-    create_coffee
+  create_coffee,
+  getallcoffee,
+  deletecoffee,
+  getOneCoffee,
+  updatecoffee
 };
