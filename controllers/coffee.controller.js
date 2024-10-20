@@ -1,9 +1,7 @@
 const asynchandler = require("express-async-handler");
 const COFFEE = require("../../model/shops/shop");
-
-const USER = require("../../model/users/user.js");
 const jwt = require("jsonwebtoken");
-const users = require("../models/users/users.js");
+const USER = require("../models/users/users.js");
 
 const create_coffee = asynchandler(async (req, res) => {
   try {
@@ -210,4 +208,5 @@ const generateToken = (id) => {
   );
 };
 module.exports = {
+    create_coffee
 };
