@@ -2,12 +2,12 @@ const mongoose = require("mongoose");
 
 const coffee = new mongoose.Schema(
     {
-        shop_name: {
+        coffee_name: {
             type: String,
-            required: [true, "please add a shop name"],
+            required: [true, "please add a coffee name"],
             unique: true,
         },
-        shop_address: {
+        address: {
             type: String,
 
         },
@@ -15,21 +15,14 @@ const coffee = new mongoose.Schema(
         keywords: {
             type: String,
         },
-        google_maps_place_id: {
-            type: String,
-        },
- 
+  
         images: {
             type: String,
         },
 
         description: { type: String },
-        website: { type: String },
-        instant_booking: { type: String },
-        category: {
-            type: String,
-            required: [true, "please add a category"],
-        },
+     
+
         owner: {
             type: mongoose.Schema.ObjectId,
             required: [true, "please include an owners Id"],
@@ -43,10 +36,7 @@ const coffee = new mongoose.Schema(
             type: String,
             required: [true, "please include a contact email"],
         },
-        approved: {
-            type: Boolean,
-            default: false,
-        },
+
         price: {
             type: Number,
             default: 0,

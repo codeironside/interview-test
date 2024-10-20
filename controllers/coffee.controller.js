@@ -1,316 +1,41 @@
 const asynchandler = require("express-async-handler");
-const SHOPS = require("../../model/shops/shop");
-const PAYMENTS = require("../../model/payment/payment");
-const logger = require("../../utils/logger");
+const COFFEE = require("../../model/shops/shop");
+
 const USER = require("../../model/users/user.js");
-const working_hours = require("../../model/shops/openinghours.model");
 const jwt = require("jsonwebtoken");
-const cloudinary = require("cloudinary").v2;
+const users = require("../models/users/users.js");
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUD_API_KEY,
-  api_secret: process.env.CLOUD_API_SECRET,
-});
-/**
- * @api {post} /register Create Shop
- * @apiName CreateShop
- * @apiGroup Shop
- *
- * @apiHeader {String} Authorization User's authorization token.
- * @apiParam {String} shop_name Name of the shop.
- * @apiParam {String} shop_address Address of the shop.
- * @apiParam {String} contact_email Contact email of the shop.
- * @apiParam {String} contact_number Contact number of the shop.
- * @apiParam {String} keywords Keywords related to the shop.
- * @apiParam {String} services Services offered by the shop.
- * @apiParam {String} google_maps_place_id Google Maps Place ID of the shop.
- * @apiParam {Number} longitude Longitude of the shop.
- * @apiParam {Array} images Array of image URLs of the shop.
- * @apiParam {String} facebook Facebook page of the shop.
- * @apiParam {String} description Description of the shop.
- * @apiParam {String} website Website of the shop.
- * @apiParam {String} twitter Twitter handle of the shop.
- * @apiParam {String} whatsapp Whatsapp number of the shop.
- * @apiParam {String} instagram Instagram handle of the shop.
- * @apiParam {Number} minimum_price Minimum price of the services offered by the shop.
- * @apiParam {Number} maximum_price Maximum price of the services offered by the shop.
- * @apiParam {Boolean} instant_booking Whether the shop supports instant booking.
- * @apiParam {String} category Category of the shop.
- * @apiParam {String} monday_opening_hours Opening hours on Monday.
- * @apiParam {String} monday_closing_hours Closing hours on Monday.
- * @apiParam {String} tuesday_opening_hours Opening hours on Tuesday.
- * @apiParam {String} tuesday_closing_hours Closing hours on Tuesday.
- * @apiParam {String} wednesday_opening_hours Opening hours on Wednesday.
- * @apiParam {String} wednesday_closing_hours Closing hours on Wednesday.
- * @apiParam {String} thursday_opening_hours Opening hours on Thursday.
- * @apiParam {String} thursday_closing_hours Closing hours on Thursday.
- * @apiParam {String} friday_opening_hours Opening hours on Friday.
- * @apiParam {String} friday_closing_hours Closing hours on Friday.
- * @apiParam {String} saturday_opening_hours Opening hours on Saturday.
- * @apiParam {String} saturday_closing_hours Closing hours on Saturday.
- * @apiParam {String} sunday_opening_hours Opening hours on Sunday.
- * @apiParam {String} sunday_closing_hours Closing hours on Sunday.
- *
- * @apiSuccess {Object} shop Created shop object.
- *
- * @apiSuccessExample Success-Response:
- *     HTTP/1.1 200 OK
- *     {
- *       "_id": "shopId",
- *       "name": "shopName",
- *       // other shop fields
- *     }
- *
- * @apiError (400) FieldsEmpty Shop name, address, contact email, contact number, services, Google Maps Place ID, longitude, images, Facebook page, description, website, Twitter handle, Whatsapp number, Instagram handle, minimum price, maximum price, instant booking, category, and opening and closing hours cannot be empty.
- * @apiError (403) NotAuthorized The user is not authorized to create a shop.
- * @apiError (404) UserNotFound The user was not found.
- * @apiError (422) InvalidSubscriptionType The user's subscription type is invalid.
- *
- * @apiErrorExample Error-Response:
- *     HTTP/1.1 400 Bad Request
- *     {
- *       "error": "FieldsEmpty"
- *     }
- *
- * @apiErrorExample Error-Response:
- *     HTTP/1.1 403 Forbidden
- *     {
- *       "error": "NotAuthorized"
- *     }
- *
- * @apiErrorExample Error-Response:
- *     HTTP/1.1 404 Not Found
- *     {
- *       "error": "UserNotFound"
- *     }
- *
- * @apiErrorExample Error-Response:
- *     HTTP/1.1 422 Unprocessable Entity
- *     {
- *       "error": "InvalidSubscriptionType"
- *     }
- */
-
-const create_shops = asynchandler(async (req, res) => {
+const create_coffee = asynchandler(async (req, res) => {
   try {
     const { id } = req.auth;
 
     if (!id) throw Object.assign(new Error("Not a user"), { statusCode: 404 });
 
-    // Check the user's subscription type
     const user = await USER.findById(id);
     if (!user)
-      throw Object.assign(new Error("Not a user"), { statusCode: 404 });
+        throw Object.assign(new Error("Not a user"), { statusCode: 404 });
+    if (user.role !== "admin")
+        throw Object.assign(new Error("unauthorized, not an admin"), {statusCode:403})
 
-    let maxAllowedShops;
-
-    // Set the maximum allowed shops based on the user's subscription type
-    switch (user.type) {
-      case "basic":
-        maxAllowedShops = 3;
-        break;
-      case "premium":
-        maxAllowedShops = 15;
-        break;
-      case "diamond":
-        maxAllowedShops = Infinity; // Unlimited shops for diamond subscription
-        break;
-      default:
-        throw Object.assign(new Error("Invalid subscription type"), {
-          statusCode: 422,
-        });
-    }
-
-    // Check the current number of shops created by the user
-    const userShopsCount = await SHOPS.countDocuments({ owner: id });
-    if (userShopsCount >= maxAllowedShops) {
-      throw Object.assign(
-        new Error(
-          `You have reached the maximum allowed shops (${maxAllowedShops})`
-        ),
-        { statusCode: 403 }
-      );
-    }
-    // if (req.body.data) {
-    //   const result = await cloudinary.uploader.upload(req.body.data, { resource_type: 'image', format: 'png' });
-
-    // image = result.secure_url;
-    // }
-
-    const {
-      shop_name,
-      shop_address,
+    const { coffee_name, address, keywords, images, price, description } =
+      req.body;
+    const createShops = await COFFEE.create({
+      owner: id,
+      coffee_name,
+      address,
+      contact_email: user.email,
+      contact_number: user.phoneNumber,
       keywords,
-      services,
-      google_maps_place_id,
-      longitude,
       images,
-      facebook,
-      price,
       description,
-      website,
-      twitter,
-      whatsapp,
-      instagram,
-      minimum_price,
-      maximum_price,
-      instant_booking,
-      category,
-      monday,
-      tuesday,
-      wednesday,
-      thursday,
-      friday,
-      saturday,
-      sunday,
-    } = req.body;
-    // Function to validate if the input is a string
-    const validateDayString = (day, dayName) => {
-      if (day && typeof day !== "string") {
-        throw Object.assign(
-          new Error(`${dayName} working hours should be a string`),
-          { statusCode: 400 }
-        );
-      }
-    };
+      price: Number(price),
+    });
 
-    // Validate each day
-    validateDayString(monday, "Monday");
-    validateDayString(tuesday, "Tuesday");
-    validateDayString(wednesday, "Wednesday");
-    validateDayString(thursday, "Thursday");
-    validateDayString(friday, "Friday");
-    validateDayString(saturday, "Saturday");
-    validateDayString(sunday, "Sunday");
-    // const { monday, tuesday, wednesday, thursday, friday, saturday, sunday } = req.body;
-
-    const MtimeSlotsArray = monday
-      ? monday.split(",").map((slot) => slot.trim())
-      : [];
-    const TtimeSlotsArray = tuesday
-      ? tuesday.split(",").map((slot) => slot.trim())
-      : [];
-    const WtimeSlotsArray = wednesday
-      ? wednesday.split(",").map((slot) => slot.trim())
-      : [];
-    const THtimeSlotsArray = thursday
-      ? thursday.split(",").map((slot) => slot.trim())
-      : [];
-    const FtimeSlotsArray = friday
-      ? friday.split(",").map((slot) => slot.trim())
-      : [];
-    const StimeSlotsArray = saturday
-      ? saturday.split(",").map((slot) => slot.trim())
-      : [];
-    const SUtimeSlotsArray = sunday
-      ? sunday.split(",").map((slot) => slot.trim())
-      : [];
-
-    // Use the uploaded image URL from Cloudinary
-    // const image = result.secure_url;
-
-    // Create shop with Cloudinary image URL
-    if (category === "barbers") {
-      const createShops = await SHOPS.create({
-        owner: id,
-        shop_name,
-        shop_address,
-        contact_email: user.email,
-        contact_number: user.phoneNumber,
-        keywords,
-        google_maps_place_id,
-        longitude,
-        images,
-        facebook,
-        description,
-        website,
-        price: Number(price),
-        twitter,
-        whatsapp,
-        instagram,
-        servicesOffered: services,
-        minimum_price,
-        maximum_price,
-        instant_booking,
-        category,
-        subscriptionType: user.type,
+    if (createShops) {
+      res.status(200).json({
+        createShops,
+        newWorkingHours,
       });
-
-      if (createShops) {
-        let newWorkingHours;
-
-        // Creating working hours for the shop
-        const workingHoursData = {
-          shopId: createShops._id,
-          hours: {
-            Monday: MtimeSlotsArray,
-            Tuesday: TtimeSlotsArray,
-            Wednesday: WtimeSlotsArray,
-            Thursday: THtimeSlotsArray,
-            Friday: FtimeSlotsArray,
-            Saturday: StimeSlotsArray,
-            Sunday: SUtimeSlotsArray,
-          },
-        };
-
-        newWorkingHours = await working_hours.create(workingHoursData);
-
-        // Update user role
-        // const updatedUser = await USER.findByIdAndUpdate(
-        //   id,
-        //   { $set: { role: "SHOP_OWNER" } },
-        //   { new: true }
-        // );
-
-        if (createShops && newWorkingHours) {
-          res.status(200).json({
-            createShops,
-            newWorkingHours,
-          });
-
-          logger.info(
-            `User with id ${id} created a shop with id: ${createShops._id} at ${createShops.createdAt} - ${res.statusCode} - ${res.statusMessage} - ${req.originalUrl} - ${req.method} - ${req.ip} - from ${req.ip}`
-          );
-        }
-      }
-    } else {
-      const createShops = await SHOPS.create({
-        owner: id,
-        shop_name,
-        shop_address,
-        contact_email: user.email,
-        contact_number: user.phoneNumber,
-        keywords,
-        google_maps_place_id,
-        longitude,
-        images,
-        facebook,
-        description,
-        website,
-        twitter,
-        whatsapp,
-        price: Number(price),
-        instagram,
-        minimum_price,
-        maximum_price,
-        instant_booking,
-        category,
-        subscriptionType: user.type,
-      });
-      if (createShops) {
-        res.status(200).json({
-          data: {
-            shop: createShops,
-            workingHours: newWorkingHours,
-          },
-          SHOP_ID: createShops._id,
-        });
-
-        logger.info(
-          `User with id ${id} created a shop with id: ${createShops._id} at ${createShops.createdAt} - ${res.statusCode} - ${res.statusMessage} - ${req.originalUrl} - ${req.method} - ${req.ip} - from ${req.ip}`
-        );
-      }
     }
   } catch (error) {
     console.error(error);
@@ -321,7 +46,7 @@ const create_shops = asynchandler(async (req, res) => {
   }
 });
 
-/**
+
  * @api {post} /login Login Shop
  * @apiName LoginShop
  * @apiGroup Shop
@@ -350,28 +75,18 @@ const create_shops = asynchandler(async (req, res) => {
  *       "error": "NoShopsFound"
  *     }
  */
-const login_shops = asynchandler(async (req, res) => {
-  const { SHOP_ID } = req.params;
-  if (!SHOP_ID) {
-    throw Object.assign(new Error("No shops found"), { statusCode: 404 });
+const getOneCoffee = asynchandler(async (req, res) => {
+  const { COFFEE_ID } = req.params;
+  if (!COFFEE_ID) {
+    throw Object.assign(new Error("Not  found"), { statusCode: 404 });
   }
   try {
-    const shop = await SHOPS.findById(SHOP_ID);
-    // Get the current time
-    const now = new Date();
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-    const seconds = now.getSeconds();
-
-    // Format the time as a string
-    const currentTime = `${hours}:${minutes}:${seconds}`;
-    if (shop) {
+    const coffee = await COFFEE.findById(SHOP_ID);
+    if (coffee) {
       res.status(200).json({
-        shop,
+        ...shop._doc,
       });
-      logger.info(
-        `shop with id ${SHOP_ID} was fetched at ${currentTime} - ${res.statusCode} - ${res.statusMessage} - ${req.originalUrl} - ${req.method} - ${req.ip} - from ${req.ip}`
-      );
+   
     }
   } catch (error) {
     throw Object.assign(new Error(`${error}`), {
@@ -379,199 +94,25 @@ const login_shops = asynchandler(async (req, res) => {
     });
   }
 });
-/**
- * @api {get} /getone Get Shop
- * @apiName GetShop
- * @apiGroup Shop
- *
- * @apiHeader {String} Authorization User's authorization token.
- * @apiParam {String} SHOP_ID ID of the shop to get.
- *
- * @apiSuccess {Boolean} successful Indicates whether the request was successful.
- * @apiSuccess {Object} data Shop object.
- * @apiSuccess {Boolean} owner Indicates whether the user is the owner of the shop.
- * @apiSuccess {String} token Authorization token.
- *
- * @apiSuccessExample Success-Response:
- *     HTTP/1.1 200 OK
- *     {
- *       "successful": true,
- *       "data": {
- *         "_id": "shopId",
- *         "name": "shopName",
- *         // other shop fields
- *       },
- *       "owner": true,
- *       "token": "authorizationToken"
- *     }
- *
- * @apiError (401) NotAuthorized The user is not authorized to access this data.
- * @apiError (404) NoShopsFound No shops were found.
- *
- * @apiErrorExample Error-Response:
- *     HTTP/1.1 401 Unauthorized
- *     {
- *       "error": "NotAuthorized"
- *     }
- *
- * @apiErrorExample Error-Response:
- *     HTTP/1.1 404 Not Found
- *     {
- *       "error": "NoShopsFound"
- *     }
- */
 
-const getshop = asynchandler(async (req, res) => {
-  const { id } = req.auth;
-  const { SHOP_ID } = req.params;
-  console.log(id);
-  if (!id) {
-    throw Object.assign(new Error("Not authorized"), { statusCode: 401 });
-  }
-  if (!SHOP_ID) {
-    throw Object.assign(new Error("No shops found"), { statusCode: 404 });
-  }
-  try {
-    const shop = await SHOPS.findById(SHOP_ID).populate("owner");
-    const whours = await working_hours.findOne({ shopId: shop._id });
-    // Get the current time
-    const now = new Date();
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-    const seconds = now.getSeconds();
 
-    // Format the time as a string
-    const currentTime = `${hours}:${minutes}:${seconds}`;
-    let owner = false;
-    if (id === shop.owner.toString()) {
-      const token = generateToken(shop._id);
-      owner = true;
-      if (shop) {
-        res
-          .status(200)
-          .header("Authorization", `Bearer ${token}`)
-          .json({
-            ...shop._doc,
-            whours,
-          });
-        logger.info(
-          `User with id ${id} logged in a shop with id: ${SHOP_ID} at ${currentTime} - ${res.statusCode} - ${res.statusMessage} - ${req.originalUrl} - ${req.method} - ${req.ip} - from ${req.ip}`
-        );
-      }
-    } else {
-      const token = generateToken(shop._id);
-      if (shop) {
-        res
-          .status(200)
-          .header("Authorization", `Bearer ${token}`)
-          .json({
-            ...shop._doc,
-            whours,
-          });
-        logger.info(
-          `User with id ${id} logged in a shop with id: ${SHOP_ID} at ${currentTime} - ${res.statusCode} - ${res.statusMessage} - ${req.originalUrl} - ${req.method} - ${req.ip} - from ${req.ip}`
-        );
-      }
-    }
-  } catch (error) {
-    throw Object.assign(new Error(`${error}`), {
-      statusCode: error.statusCode,
-    });
-  }
-});
-/**
- * @api {get} /getall Get All Shops
- * @apiName GetAllShops
- * @apiGroup Shop
- *
- * @apiHeader {String} Authorization User's authorization token.
- * @apiParam {Number} [page=1] Page number.
- * @apiParam {Number} [pageSize=10] Number of shops per page.
- *
- * @apiSuccess {Boolean} owner Indicates whether the user is the owner of the shop.
- * @apiSuccess {Array} data Array of shop objects.
- * @apiSuccess {Number} page Current page number.
- * @apiSuccess {Number} totalPages Total number of pages.
- * @apiSuccess {String} token Authorization token.
- *
- * @apiSuccessExample Success-Response:
- *     HTTP/1.1 200 OK
- *     {
- *       "owner": true,
- *       "data": [
- *         {
- *           "_id": "shopId",
- *           "name": "shopName",
- *           // other shop fields
- *         },
- *         // more shop objects
- *       ],
- *       "page": 1,
- *       "totalPages": 10,
- *       "token": "authorizationToken"
- *     }
- *
- * @apiError (403) NotAuthorized The user is not authorized to access this data.
- * @apiError (404) NoShopsFound No shops were found.
- *
- * @apiErrorExample Error-Response:
- *     HTTP/1.1 403 Forbidden
- *     {
- *       "error": "NotAuthorized"
- *     }
- *
- * @apiErrorExample Error-Response:
- *     HTTP/1.1 404 Not Found
- *     {
- *       "error": "NoShopsFound"
- *     }
- */
-
-const getallshops = asynchandler(async (req, res) => {
+const getallcoffee = asynchandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
-  const pageSize = parseInt(req.query.pageSize) || 10;
-  const { id } = req.auth;
+  const pageSize = parseInt(req.query.pageSize) || 3;
+
   try {
-    const user = await USER.findById(id);
-    if (!(user.role === "superadmin")) {
-      throw Object.assign(new Error("Not authorized"), { statusCode: 403 });
-    }
-    let owner = false;
-    const shop = await SHOPS.findOne({ owner: id });
-    if ((id === shop.owner, toString())) {
-      const token = generateToken(shop._id);
-      owner = true;
-      const totalCount = await SHOPS.countDocuments();
+
+      const totalCount = await COFFEE.countDocuments();
       const totalPages = Math.ceil(totalCount / pageSize);
-      const shops = await SHOPS.find()
-        .skip((page - 1) * pageSize)
-        .limit(pageSize);
-      res.status(200).header("Authorization", `Bearer ${token}`).json({
-        owner: owner,
-        data: shops,
-        page: page,
-        totalPages: totalPages,
+      const coffees = await COFFEE.find()
+          .skip((page - 1) * pageSize)
+          .limit(pageSize);
+      res.status(200).json({
+          owner: owner,
+          data:coffees,
+          page: page,
+          totalPages: totalPages,
       });
-      logger.info(
-        `shops were fetched by${id} - ${res.statusCode} - ${res.statusMessage} - ${req.originalUrl} - ${req.method} - ${req.ip} - from ${req.ip}`
-      );
-    } else {
-      const token = generateToken(shop._id);
-      const totalCount = await SHOPS.countDocuments();
-      const totalPages = Math.ceil(totalCount / pageSize);
-      const shops = await SHOPS.find()
-        .skip((page - 1) * pageSize)
-        .limit(pageSize);
-      res.status(200).header("Authorization", `Bearer ${token}`).json({
-        owner: owner,
-        data: shops,
-        page: page,
-        totalPages: totalPages,
-      });
-      logger.info(
-        `shops were fetched by${id} - ${res.statusCode} - ${res.statusMessage} - ${req.originalUrl} - ${req.method} - ${req.ip} - from ${req.ip}`
-      );
-    }
   } catch (error) {
     console.log(error);
     throw Object.assign(new Error(`${error}`), {
@@ -579,81 +120,11 @@ const getallshops = asynchandler(async (req, res) => {
     });
   }
 });
-/**
- * @api {get} /all Get All Shops
- * @apiName GetAllShops
- * @apiGroup Shop
- *
- * @apiParam {Number} [page=1] Page number.
- * @apiParam {Number} [pageSize=10] Number of shops per page.
- *
- * @apiSuccess {Boolean} owner Indicates whether the user is the owner of the shop.
- * @apiSuccess {Array} data Array of shop objects.
- * @apiSuccess {Number} page Current page number.
- * @apiSuccess {Number} totalPages Total number of pages.
- *
- * @apiSuccessExample Success-Response:
- *     HTTP/1.1 200 OK
- *     {
- *       "owner": false,
- *       "data": [
- *         {
- *           "_id": "shopId",
- *           "name": "shopName",
- *           // other shop fields
- *         },
- *         // more shop objects
- *       ],
- *       "page": 1,
- *       "totalPages": 10
- *     }
- *
- * @apiError (500) ServerError An error occurred on the server.
- *
- * @apiErrorExample Error-Response:
- *     HTTP/1.1 500 Internal Server Error
- *     {
- *       "error": "ServerError"
- *     }
- */
 
-// desc list all shops
-// route /shops/al
-const getall = asynchandler(async (req, res) => {
-  try {
-    const shops = await SHOPS.find();
-    const payments = await PAYMENTS.aggregate([
-      { $group: { _id: "$shop_id", count: { $sum: 1 } } },
-    ]);
 
-    // Convert payments to a map for faster lookup
-    const paymentMap = {};
-    payments.forEach((payment) => {
-      paymentMap[payment._id.toString()] = payment.count;
-    });
 
-    // Add payment count to each shop
-    shops.forEach((shop) => {
-      shop.paymentCount = paymentMap[shop._id.toString()] || 0;
-    });
-
-    res.status(200).json({
-      shops,
-    });
-
-    logger.info(
-      `shops were fetched  - ${res.statusCode} - ${res.statusMessage} - ${req.originalUrl} - ${req.method} - ${req.ip} - from ${req.ip}`
-    );
-  } catch (error) {
-    console.log(error);
-    throw Object.assign(new Error(`${error}`), {
-      statusCode: error.statusCode,
-    });
-  }
-});
-// const getall = asynchandler(async (req, res) => {
 //   try {
-//     const shops = await SHOPS.find({ isApproved: true, hasConsented: true });
+//     const shops = await COFFEE.find({ isApproved: true, hasConsented: true });
 //     const payments = await PAYMENTS.aggregate([
 //       { $group: { _id: "$shop_id", count: { $sum: 1 } } }
 //     ]);
@@ -692,9 +163,9 @@ const getbabers = asynchandler(async (req, res) => {
   const pageSize = parseInt(req.query.pageSize) || 10;
   try {
     owner = false;
-    const totalCount = await SHOPS.countDocuments();
+    const totalCount = await COFFEE.countDocuments();
     const totalPages = Math.ceil(totalCount / pageSize);
-    const shops = await SHOPS.find({ category: "barbers" })
+    const shops = await COFFEE.find({ category: "barbers" })
       .skip((page - 1) * pageSize)
       .limit(pageSize);
     res.status(200).json({
@@ -763,9 +234,9 @@ const getallshopone = asynchandler(async (req, res) => {
     throw Object.assign(new Error("Not authorized"), { statusCode: 401 });
 
   try {
-    const totalCount = await SHOPS.countDocuments({ owner: id });
+    const totalCount = await COFFEE.countDocuments({ owner: id });
     const totalPages = Math.ceil(totalCount / pageSize);
-    const shops = await SHOPS.find({ owner: id })
+    const shops = await COFFEE.find({ owner: id })
       .skip((page - 1) * pageSize)
       .limit(pageSize);
 
@@ -797,7 +268,6 @@ const getallshopone = asynchandler(async (req, res) => {
   }
 });
 
-/**
  * @api {put} /updateS/:shopId Update Shop
  * @apiName UpdateShop
  * @apiGroup Shop
@@ -867,15 +337,15 @@ const getallshopone = asynchandler(async (req, res) => {
  *     }
  */
 
-const updateShops = asynchandler(async (req, res) => {
-  const { shopId } = req.params; // Get the shop ID from the route parameters
+const updatecoffee = asynchandler(async (req, res) => {
+  const { coffeeId } = req.params; // Get the shop ID from the route parameters
   const clientIp = req.ip;
 
   const updateData = req.body; // Get the updated data from the request body
   const { id } = req.auth;
   try {
-    if (!shopId) {
-      throw Object.assign(new Error("shop id is empty"), {
+    if (!coffeeId) {
+      throw Object.assign(new Error("coffee id is empty"), {
         statusCode: 400,
       });
     }
@@ -886,69 +356,44 @@ const updateShops = asynchandler(async (req, res) => {
       });
     }
 
-    const shop = await SHOPS.findById(shopId);
+    const coffee= await COFFEE.findById(coffeeId);
 
-    if (!shop) {
+    if (!coffee) {
       throw Object.assign(new Error("shop not found"), {
         statusCode: 404,
       });
     }
-
-    // Check if the authenticated user is the owner of the shop
+const user = await users.findById(id)
     if (
       !(
-        shop.owner.toString() === id ||
-        process.env.role.toString() === "superadmin"
+        user.role==="admin"
       )
     ) {
       throw Object.assign(new Error("not authorized"), {
         statusCode: 403,
       });
     }
-
-    // if (req.file) {
-    //   const result = await cloudinary.uploader.upload(req.file.path);
-
-    //   if (!result || !result.secure_url) {
-    //     throw Object.assign(new Error("failed to upload shops"), {
-    //       statusCode: 500,
-    //     });
-    //   }
-
-    //   updateData.image = result.secure_url;
-    // }
-
-    const updatedShop = await SHOPS.findByIdAndUpdate(shopId, updateData, {
+    const updatedcoffee = await COFFEE.findByIdAndUpdate(shopId, updateData, {
       new: true, // Return the updated shop document
     });
 
-    if (!updatedShop) {
+    if (!updatedcoffee) {
       throw Object.assign(new Error("error updating shop"), {
         statusCode: 404,
       });
     }
-
-    const location = await getLocation(clientIp);
-    const workingHours = await working_hours.findOne({
-      shopId: shopId,
-    });
     const token = generateToken(id);
     res.status(202).header("Authorization", `Bearer ${token}`).json({
       successful: true,
-      data: updatedShop,
-      workingHours: workingHours,
+      data: updatedcoffee,
     });
-
-    logger.info(
-      `User with id ${id} updated shop with id: ${shopId} at ${updatedShop.updatedAt} - ${res.statusCode} - ${res.statusMessage} - ${req.originalUrl} - ${req.method} - ${req.ip}`
-    );
   } catch (error) {
     throw Object.assign(new Error(`${error}`), {
       statusCode: error.statusCode,
     });
   }
 });
-/**
+
  * @api {put} /updateH/:shopId Update Shop Working Hours
  * @apiName UpdateShopWorkingHours
  * @apiGroup Shop
@@ -1027,111 +472,9 @@ const updateShops = asynchandler(async (req, res) => {
  *       "error": "ErrorUpdatingHours"
  *     }
  */
-const updateWorkingHours = asynchandler(async (req, res) => {
-  try {
-    const { shopId } = req.params;
-    const { monday, tuesday, wednesday, thursday, friday, saturday, sunday } =
-      req.body;
 
-    if (!shopId) {
-      throw Object.assign(new Error("Working hours ID is empty"), {
-        statusCode: 400,
-      });
-    }
 
-    if (!req.body) {
-      throw Object.assign(new Error("Required fields cannot be empty"), {
-        statusCode: 400,
-      });
-    }
 
-    const workingHours = await working_hours.findOne({ shopId: shopId });
-
-    if (!workingHours) {
-      throw Object.assign(new Error("Working hours not found"), {
-        statusCode: 404,
-      });
-    }
-
-    const workingHoursData = {
-      shopId: shopId,
-      hours: {
-        Monday: monday ? monday.split(",").map((slot) => slot.trim()) : [],
-        Tuesday: tuesday ? tuesday.split(",").map((slot) => slot.trim()) : [],
-        Wednesday: wednesday
-          ? wednesday.split(",").map((slot) => slot.trim())
-          : [],
-        Thursday: thursday
-          ? thursday.split(",").map((slot) => slot.trim())
-          : [],
-        Friday: friday ? friday.split(",").map((slot) => slot.trim()) : [],
-        Saturday: saturday
-          ? saturday.split(",").map((slot) => slot.trim())
-          : [],
-        Sunday: sunday ? sunday.split(",").map((slot) => slot.trim()) : [],
-      },
-    };
-
-    const updatedWorkingHours = await working_hours.findOneAndUpdate(
-      { shopId: shopId },
-      workingHoursData,
-      {
-        new: true,
-        upsert: true,
-      }
-    );
-
-    if (!updatedWorkingHours) {
-      throw Object.assign(new Error("Error updating working hours"), {
-        statusCode: 500,
-      });
-    }
-
-    res.status(200).json({
-      updatedWorkingHours,
-    });
-
-    logger.info(
-      `Updated working hours for shop ID ${shopId} - ${res.statusCode} - ${res.statusMessage} - ${req.originalUrl} - ${req.method} - ${req.ip}`
-    );
-  } catch (error) {
-    console.error(error);
-    throw Object.assign(new Error(`${error}`), {
-      statusCode: error.statusCode || 500,
-    });
-  }
-});
-
-const consentToUserAgreement = asynchandler(async (req, res, io) => {
-  try {
-    const { id } = req.auth;
-    const { shopId } = req.params;
-    if (!id) throw Object.assign(new Error("Not a user"), { statusCode: 404 });
-    const shops = await SHOPS.findByIdAndUpdate(shopId);
-    if (id !== shops.owner.toString())
-      throw Object.assign(new Error("Not authorized"), { statusCode: 403 });
-    const user = await SHOPS.findByIdAndUpdate(
-      shopId,
-      { hasConsented: true },
-      { new: true }
-    );
-    if (!user) {
-      throw Object.assign(new Error("shop not found"), { statusCode: 404 });
-    }
-    const token = generateToken(id);
-    res.status(200).header("Authorization", `Bearer ${token}`).json({
-      status: "success",
-      data: user,
-    });
-    logger.info(
-      `User agreement consent updated by ${id} - ${res.statusCode} - ${res.statusMessage} - ${req.originalUrl} - ${req.method} - ${req.ip} `
-    );
-  } catch (error) {
-    throw Object.assign(new Error("Banned from forum"), {
-      statusCode: error.statusCode,
-    });
-  }
-});
 const deleteShop = asynchandler(async (req, res) => {
   const { shopId } = req.params;
   const { id } = req.auth;
@@ -1143,7 +486,7 @@ const deleteShop = asynchandler(async (req, res) => {
       });
     }
 
-    const shop = await SHOPS.findById(shopId);
+    const shop = await COFFEE.findById(shopId);
     if (!shop) {
       throw Object.assign(new Error("Shop not found"), {
         statusCode: 404,
@@ -1156,7 +499,7 @@ const deleteShop = asynchandler(async (req, res) => {
       });
     }
 
-    const deletedShop = await SHOPS.findByIdAndDelete(shopId);
+    const deletedShop = await COFFEE.findByIdAndDelete(shopId);
 
     if (!deletedShop) {
       throw Object.assign(new Error("Error deleting shop"), {
@@ -1250,7 +593,7 @@ const updateapproval = asynchandler(async (req, res) => {
     const { id } = req.auth;
     const { shopId } = req.params;
     const { status } = req.body;
-    const shop = await SHOPS.findById(shopId);
+    const shop = await COFFEE.findById(shopId);
     const user = await USER.findById(id);
     if (
       !(
@@ -1260,7 +603,7 @@ const updateapproval = asynchandler(async (req, res) => {
       )
     )
       throw Object.assign(new Error("Not authorized"), { statusCode: 401 });
-    const updatedUser = await SHOPS.findByIdAndUpdate(
+    const updatedUser = await COFFEE.findByIdAndUpdate(
       shopId,
       { $set: { approved: status } },
       { new: true }
@@ -1329,7 +672,7 @@ const updatesubscription = asynchandler(async (req, res) => {
     const { id } = req.auth;
     const { shopId } = req.params;
     const { status } = req.body;
-    const shop = await SHOPS.findById(shopId);
+    const shop = await COFFEE.findById(shopId);
     const user = await USER.findById(id);
     if (
       !(
@@ -1339,7 +682,7 @@ const updatesubscription = asynchandler(async (req, res) => {
       )
     )
       throw Object.assign(new Error("Not authorized"), { statusCode: 401 });
-    const updatedUser = await SHOPS.findByIdAndUpdate(
+    const updatedUser = await COFFEE.findByIdAndUpdate(
       shopId,
       { $set: { subscribed: status } },
       { new: true }
@@ -1409,7 +752,7 @@ const updateavalability = asynchandler(async (req, res) => {
     const { id } = req.auth;
     const { shopId } = req.params;
     const { status } = req.body;
-    const shop = await SHOPS.findById(shopId);
+    const shop = await COFFEE.findById(shopId);
     const user = await USER.findById(id);
     if (
       !(
@@ -1420,7 +763,7 @@ const updateavalability = asynchandler(async (req, res) => {
     )
       throw Object.assign(new Error("Not authorized"), { statusCode: 401 });
 
-    const updatedUser = await SHOPS.findByIdAndUpdate(
+    const updatedUser = await COFFEE.findByIdAndUpdate(
       shopId,
       { $set: { avalabilty: status } },
       { new: true }
@@ -1475,7 +818,7 @@ const updateavalability = asynchandler(async (req, res) => {
 const searchShops = asynchandler(async (req, res) => {
   const query = req.query.query;
   try {
-    const shopResults = await SHOPS.find({ $text: { $search: query } }).sort({
+    const shopResults = await COFFEE.find({ $text: { $search: query } }).sort({
       createdAt: -1,
     });
     res.status(200).json({
@@ -1552,7 +895,7 @@ const updateServices = asynchandler(async (req, res) => {
       throw Object.assign(new Error("Invalid data"), { statusCode: 422 });
     }
 
-    const updatedShop = await SHOPS.findByIdAndUpdate(
+    const updatedShop = await COFFEE.findByIdAndUpdate(
       shopId,
       { $set: { servicesOffered: services.split(",") } },
       { new: true }
