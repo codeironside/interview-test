@@ -1,5 +1,5 @@
 const asynchandler = require("express-async-handler");
-const COFFEE = require("../../model/shops/shop");
+const COFFEE = require("../models/coffee/coffee.js");
 const jwt = require("jsonwebtoken");
 const USER = require("../models/users/users.js");
 

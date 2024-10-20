@@ -1,17 +1,8 @@
 const asynchandler = require("express-async-handler");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
-const USER = require("../../model/users/user");
-const SHOPS = require("../../model/shops/shop");
-const COMMENT = require("../../model/blogs/comments");
-const BLOGS = require("../../model/blogs/blog");
-const logger = require("../../utils/logger");
-const { DateTime } = require("luxon");
-const { convertToWAT } = require("../../utils/datetime");
-const BOOKING = require("../../model/payment/booking");
-const nodemailer = require("nodemailer");
+const USER = require("../models/users/users");
 
-const currentDateTimeWAT = DateTime.now().setZone("Africa/Lagos");
 /**
  * @api {post} /login Login User
  * @apiName LoginUser

@@ -1,4 +1,4 @@
-const { stack } = require("../routes/users");
+const { stack } = require("../routes/user");
 
 const errorHandler = (err, req, res, next) => {
   let statusCode;

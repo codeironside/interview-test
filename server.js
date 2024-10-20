@@ -1,30 +1,22 @@
 require("dotenv").config();
 const express = require("express");
 const http = require('http'); // Import http module
-const socketIo = require('socket.io');
-const morgan = require('morgan');
-const requestIp = require('request-ip');
+
 const cors = require("cors");
 const corsOption = require("./config/corsOption");
-const credentials = require("./middleware/credentials");
 const { errorHandler } = require("./middleware/errormiddleware");
-const { Server } = require('socket.io');
 const connectDB = require("./config/db");
 
 const app = express();
 
 
 const port = process.env.PORT;
-// Logger
-app.use(morgan("tiny", { stream: logger.stream }));
-app.use(morgan(':date[iso] - :method :url :status :res[content-length] - :response-time ms'));
-app.use(requestIp.mw());
 
 // Database connection
 connectDB();
 
 // Middleware
-app.use(credentials);
+
 app.use(cors(corsOption));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
@@ -44,15 +36,9 @@ app.get('/', (req, res) => {
 // Routes
 app.use("/api/v1/users/auth", require("./routes/user"));
 app.use("/api/v1/coffee", require("./routes/coffee"));
-// app.use("/api/v1/threads", require("./routes/threads"));
-// app.use("/api/v1/blogs", require("./routes/blog"));
-// app.use("/api/v1/subscription", require("./routes/subscription"));
-// app.use("/api/v1/booking", require("./routes/booking"));
+app.use("/api/v1/orders", require("./routes/order"));
 app.use("/api/v1/cart", require("./routes/cart"));
-// app.use("/api/v1/payment", require("./routes/payment"));
-// app.use("/api/v1/campaign", require("./routes/campaign"));
-// app.use("/api/v1/stripe", require("./routes/stripe.route"));
-// app.use("/api/v1/customerservice", require("./routes/customerservice.route"));
+
 
 // Error handling middleware
 app.use(errorHandler);
